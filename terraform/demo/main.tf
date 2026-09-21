@@ -11,26 +11,10 @@ provider "aws" {
   region = "eu-north-1"
 }
 
-data "aws_vpc" "default" {
-  default = true
-}
-
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-}
-
-data "aws_ssm_parameter" "amazon_linux_2023" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
-}
-
 resource "aws_instance" "cloudpilot_demo" {
-  ami           = data.aws_ssm_parameter.amazon_linux_2023.value
+  ami           = "ami-06cfeaaa22092f09d"
   instance_type = "t3.micro"
-
-  subnet_id = data.aws_subnets.default.ids[0]
+  subnet_id     = "subnet-0a7a1728a66d078a1"
 
   tags = {
     Name        = "CloudPilot-Demo"
