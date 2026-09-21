@@ -28,7 +28,7 @@ data "aws_ssm_parameter" "amazon_linux_2023" {
 
 resource "aws_instance" "cloudpilot_demo" {
   ami           = data.aws_ssm_parameter.amazon_linux_2023.value
-  instance_type = "t3.micro"
+  instance_type = "t3.small"
 
   subnet_id = data.aws_subnets.default.ids[0]
 
