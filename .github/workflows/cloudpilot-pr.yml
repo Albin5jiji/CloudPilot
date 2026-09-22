@@ -33,7 +33,7 @@ jobs:
           if [ -n "${CLOUDPILOT_TF_DIRECTORY}" ] && [ -d "${CLOUDPILOT_TF_DIRECTORY}" ]; then
             cd "${CLOUDPILOT_TF_DIRECTORY}"
             terraform init -input=false -no-color
-            terraform plan -input=false -no-color -out=tfplan
+            terraform plan -input=false -no-color -refresh=false -out=tfplan
             terraform show -json tfplan > "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
           else
             # Deterministic development path: no cloud credentials or sensitive plan values.
