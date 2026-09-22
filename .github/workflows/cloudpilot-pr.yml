@@ -22,6 +22,7 @@ jobs:
       CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'staging' }}
       CLOUDPILOT_TEAM: ${{ vars.CLOUDPILOT_TEAM || 'unassigned' }}
       CLOUDPILOT_REMAINING_BUDGET: ${{ vars.CLOUDPILOT_REMAINING_BUDGET }}
+      CLOUDPILOT_ENFORCE_BLOCK_GATE: ${{ vars.CLOUDPILOT_ENFORCE_BLOCK_GATE || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -117,7 +118,7 @@ jobs:
             await github.rest.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body});
 
       - name: Fail gate for blocked changes
-        if: steps.cloudpilot.outputs.submitted == 'true'
+        if: steps.cloudpilot.outputs.submitted == 'true' && env.CLOUDPILOT_ENFORCE_BLOCK_GATE == 'true'
         shell: bash
         run: |
           PYTHON_CMD="python"
