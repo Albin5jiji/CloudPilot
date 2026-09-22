@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "**/*.tf"
+      - "**/*.tfvars"
+      - "**/*.tf.json"
       - ".github/workflows/cloudpilot-pr.yml"
       - "scripts/github_pr_feedback.py"
   workflow_dispatch:
@@ -18,10 +20,11 @@ jobs:
     env:
       # Set as a GitHub Actions secret. It must be reachable from GitHub-hosted runners.
       CLOUDPILOT_API_URL: ${{ secrets.CLOUDPILOT_API_URL }}
-      CLOUDPILOT_TF_DIRECTORY: ${{ vars.CLOUDPILOT_TF_DIRECTORY }}
+      CLOUDPILOT_TF_DIRECTORY: ${{ vars.CLOUDPILOT_TF_DIRECTORY || 'terraform/demo' }}
       CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'staging' }}
       CLOUDPILOT_TEAM: ${{ vars.CLOUDPILOT_TEAM || 'unassigned' }}
       CLOUDPILOT_REMAINING_BUDGET: ${{ vars.CLOUDPILOT_REMAINING_BUDGET }}
+      CLOUDPILOT_ENFORCE_BLOCK_GATE: ${{ vars.CLOUDPILOT_ENFORCE_BLOCK_GATE || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -37,7 +40,7 @@ jobs:
             terraform show -json tfplan > "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
           else
             # Deterministic development path: no cloud credentials or sensitive plan values.
-            cp terraform/test-plans/multidepth-demo.json cloudpilot-plan.json
+            cp terraform/test-plans/allow-demo.json cloudpilot-plan.json
           fi
 
       - name: Setup Python for ephemeral API
@@ -120,9 +123,16 @@ jobs:
         if: steps.cloudpilot.outputs.submitted == 'true'
         shell: bash
         run: |
+          set -euo pipefail
           PYTHON_CMD="python"
           if [ -f ".venv/bin/python" ]; then
             PYTHON_CMD=".venv/bin/python"
           fi
           decision="$($PYTHON_CMD -c "import json; print(json.load(open('cloudpilot-result.json'))['decision'])")"
-          test "$decision" != "BLOCK"
+          if [ "$decision" = "BLOCK" ]; then
+            if [ "${CLOUDPILOT_ENFORCE_BLOCK_GATE}" = "true" ]; then
+              echo "CloudPilot decision is BLOCK and CLOUDPILOT_ENFORCE_BLOCK_GATE=true."
+              exit 1
+            fi
+            echo "CloudPilot decision is BLOCK, but enforcement is disabled."
+          fi

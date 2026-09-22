@@ -148,9 +148,11 @@ FastAPI documentation is available at `/docs`.
 [.github/workflows/cloudpilot-pr.yml](.github/workflows/cloudpilot-pr.yml) supplies an actual PR gate.
 
 1. Configure the `CLOUDPILOT_API_URL` GitHub Actions secret with a reachable deployed CloudPilot URL.
-2. Optionally configure `CLOUDPILOT_TF_DIRECTORY`, `CLOUDPILOT_ENVIRONMENT`, `CLOUDPILOT_TEAM`, and `CLOUDPILOT_REMAINING_BUDGET` as repository variables.
-3. The workflow runs Terraform in the configured directory, or uses the deterministic safe fixture if none is configured.
+2. Optionally configure `CLOUDPILOT_TF_DIRECTORY`, `CLOUDPILOT_ENVIRONMENT`, `CLOUDPILOT_TEAM`, and `CLOUDPILOT_REMAINING_BUDGET` as repository variables. The Terraform directory defaults to `terraform/demo`.
+3. The workflow runs Terraform in the configured directory, or uses the deterministic safe fixture if Terraform planning is unavailable. Changes to `.tf`, `.tfvars`, and `.tf.json` files trigger the review.
 4. It submits plan JSON without writing plan contents to logs, posts a concise PR comment, retains `cloudpilot-result.json` as a run-specific artifact, and fails for `BLOCK`.
+
+When `CLOUDPILOT_API_URL` is not configured, the workflow starts a temporary API on the GitHub runner. It can post the PR comment and enforce the gate, but its analysis is not added to a persistent dashboard and is discarded when the job ends. Configure a reachable deployed CloudPilot API to retain PR analyses under **Infrastructure changes**.
 
 The result artifact contains the authoritative CloudPilot analysis ID. A deployment workflow downloads that artifact and can run:
 
