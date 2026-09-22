@@ -24,6 +24,7 @@ jobs:
       CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'staging' }}
       CLOUDPILOT_TEAM: ${{ vars.CLOUDPILOT_TEAM || 'unassigned' }}
       CLOUDPILOT_REMAINING_BUDGET: ${{ vars.CLOUDPILOT_REMAINING_BUDGET }}
+      CLOUDPILOT_ENFORCE_BLOCK_GATE: ${{ vars.CLOUDPILOT_ENFORCE_BLOCK_GATE || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -122,9 +123,16 @@ jobs:
         if: steps.cloudpilot.outputs.submitted == 'true'
         shell: bash
         run: |
+          set -euo pipefail
           PYTHON_CMD="python"
           if [ -f ".venv/bin/python" ]; then
             PYTHON_CMD=".venv/bin/python"
           fi
           decision="$($PYTHON_CMD -c "import json; print(json.load(open('cloudpilot-result.json'))['decision'])")"
-          test "$decision" != "BLOCK"
+          if [ "$decision" = "BLOCK" ]; then
+            if [ "${CLOUDPILOT_ENFORCE_BLOCK_GATE}" = "true" ]; then
+              echo "CloudPilot decision is BLOCK and CLOUDPILOT_ENFORCE_BLOCK_GATE=true."
+              exit 1
+            fi
+            echo "CloudPilot decision is BLOCK, but enforcement is disabled."
+          fi
