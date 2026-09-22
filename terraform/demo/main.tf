@@ -24,7 +24,7 @@ provider "aws" {
 variable "ec2_instance_type" {
   description = "EC2 instance type for the demo workload"
   type        = string
-  default     = "t3.small"
+  default     = "t3.micro"
 }
 
 variable "rds_instance_class" {
