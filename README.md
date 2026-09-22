@@ -197,3 +197,50 @@ The suite covers parser action/malformed cases, static cost calculation, databas
 - V3 observation is associated through a reviewer/CI-provided deployment identifier. It is not automatic deployment control or rollback.
 - CloudWatch collection currently has an explicit EC2 CPU path; latency/error/availability inputs must come from appropriate approved telemetry sources. Cost Explorer is an account/service-period signal only, never asserted as direct deployment or resource attribution.
 - No V4/multi-cloud support is implemented.
+
+## GitHub PR Demo Commands
+
+Use these exact commands during the review to demonstrate the GitHub integration cleanly.
+
+### ALLOW PR
+
+1. Setup the branch:
+   ```bash
+   git checkout main
+   git pull origin main
+   git checkout -b demo/allow-upgrade
+   ```
+2. Make a small, safe change in `terraform/demo/main.tf` (e.g., `t3.micro` → `t3.small`).
+3. Commit and push:
+   ```bash
+   git add terraform/demo/main.tf
+   git commit -m "Demo: upgrade EC2 instance"
+   git push -u origin demo/allow-upgrade
+   ```
+4. Open the PR on GitHub (`demo/allow-upgrade` → `main`) and watch the CloudPilot Action pass.
+
+### BLOCK PR
+
+1. After you’re done with the first PR, create the second branch:
+   ```bash
+   git checkout main
+   git pull origin main
+   git checkout -b demo/block-change
+   ```
+2. Make an expensive/risky change in `terraform/demo/main.tf` (e.g., changing an RDS instance class to `db.r6g.2xlarge`).
+3. Commit and push:
+   ```bash
+   git add .
+   git commit -m "Demo: high risk infrastructure change"
+   git push -u origin demo/block-change
+   ```
+4. Open the PR on GitHub (`demo/block-change` → `main`) and watch the CloudPilot Action correctly fail the gate (BLOCK).
+
+### Modifying an open PR
+
+If you need to tweak something while the PR is still open:
+```bash
+git add .
+git commit -m "Fix demo"
+git push
+```
