@@ -46,3 +46,18 @@ resource "aws_instance" "cloudpilot_demo" {
   }
 }
 
+
+resource "aws_db_instance" "checkout" {
+  identifier          = "checkout"
+  instance_class      = var.rds_instance_class
+  engine              = "postgres"
+  allocated_storage   = 20
+  username            = "demo"
+  password            = "demo-password-not-real"
+  skip_final_snapshot = true
+
+  tags = {
+    Environment = "production"
+    Owner       = "Payments"
+  }
+}
