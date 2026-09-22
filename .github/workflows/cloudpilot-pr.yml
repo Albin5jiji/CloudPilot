@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "**/*.tf"
+      - "**/*.tfvars"
+      - "**/*.tf.json"
       - ".github/workflows/cloudpilot-pr.yml"
       - "scripts/github_pr_feedback.py"
   workflow_dispatch:
@@ -18,7 +20,7 @@ jobs:
     env:
       # Set as a GitHub Actions secret. It must be reachable from GitHub-hosted runners.
       CLOUDPILOT_API_URL: ${{ secrets.CLOUDPILOT_API_URL }}
-      CLOUDPILOT_TF_DIRECTORY: ${{ vars.CLOUDPILOT_TF_DIRECTORY }}
+      CLOUDPILOT_TF_DIRECTORY: ${{ vars.CLOUDPILOT_TF_DIRECTORY || 'terraform/demo' }}
       CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'staging' }}
       CLOUDPILOT_TEAM: ${{ vars.CLOUDPILOT_TEAM || 'unassigned' }}
       CLOUDPILOT_REMAINING_BUDGET: ${{ vars.CLOUDPILOT_REMAINING_BUDGET }}
@@ -37,7 +39,7 @@ jobs:
             terraform show -json tfplan > "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
           else
             # Deterministic development path: no cloud credentials or sensitive plan values.
-            cp terraform/test-plans/multidepth-demo.json cloudpilot-plan.json
+            cp terraform/test-plans/allow-demo.json cloudpilot-plan.json
           fi
 
       - name: Setup Python for ephemeral API

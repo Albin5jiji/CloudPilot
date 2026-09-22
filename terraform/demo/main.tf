@@ -24,7 +24,7 @@ provider "aws" {
 variable "ec2_instance_type" {
   description = "EC2 instance type for the demo workload"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.small"
 }
 
 variable "rds_instance_class" {
@@ -45,6 +45,7 @@ resource "aws_instance" "cloudpilot_demo" {
     Owner       = "CloudPilot"
   }
 }
+
 
 resource "aws_db_instance" "checkout" {
   identifier          = "checkout"
