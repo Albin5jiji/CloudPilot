@@ -131,10 +131,10 @@ generate_plan() {
   fi
 
   info "terraform init …"
-  terraform -chdir="$TF_DIR" init -input=false -upgrade -no-color >/dev/null 2>&1 && ok "Init complete" || warn "Init had warnings (continuing)"
+  terraform -chdir="$TF_DIR" init -input=false -upgrade -no-color || warn "Init had errors (continuing)"
 
   info "terraform plan …"
-  if terraform -chdir="$TF_DIR" plan -out="$TF_DIR/tfplan" -input=false -no-color >/dev/null 2>&1; then
+  if terraform -chdir="$TF_DIR" plan -out="$TF_DIR/tfplan" -refresh=false -input=false -no-color; then
     ok "Plan generated"
     info "terraform show -json …"
     terraform -chdir="$TF_DIR" show -json "$TF_DIR/tfplan" > "$PLAN_JSON"
