@@ -24,7 +24,7 @@ provider "aws" {
 variable "ec2_instance_type" {
   description = "EC2 instance type for the demo workload"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.small"
 }
 
 variable "rds_instance_class" {
@@ -43,20 +43,5 @@ resource "aws_instance" "cloudpilot_demo" {
     Name        = "CloudPilot-Demo"
     Environment = "development"
     Owner       = "CloudPilot"
-  }
-}
-
-resource "aws_db_instance" "checkout" {
-  identifier          = "checkout"
-  instance_class      = var.rds_instance_class
-  engine              = "postgres"
-  allocated_storage   = 20
-  username            = "demo"
-  password            = "demo-password-not-real"
-  skip_final_snapshot = true
-
-  tags = {
-    Environment = "production"
-    Owner       = "Payments"
   }
 }
