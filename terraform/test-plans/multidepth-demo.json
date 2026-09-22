@@ -21,7 +21,7 @@
           }
         },
         "after": {
-          "instance_class": "db.r6g.large",
+          "instance_class": "db.r6g.2xlarge",
           "publicly_accessible": false,
           "tags": {
             "Environment": "production",
