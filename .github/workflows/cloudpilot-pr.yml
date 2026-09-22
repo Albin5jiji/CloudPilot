@@ -16,8 +16,9 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     env:
+      # Set as a GitHub Actions secret. It must be reachable from GitHub-hosted runners.
       CLOUDPILOT_API_URL: ${{ secrets.CLOUDPILOT_API_URL }}
-      CLOUDPILOT_TF_DIRECTORY: ${{ vars.CLOUDPILOT_TF_DIRECTORY || 'terraform/demo' }}
+      CLOUDPILOT_TF_DIRECTORY: ${{ vars.CLOUDPILOT_TF_DIRECTORY }}
       CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'staging' }}
       CLOUDPILOT_TEAM: ${{ vars.CLOUDPILOT_TEAM || 'unassigned' }}
       CLOUDPILOT_REMAINING_BUDGET: ${{ vars.CLOUDPILOT_REMAINING_BUDGET }}
