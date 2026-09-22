@@ -37,15 +37,15 @@ jobs:
             terraform show -json tfplan > "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
           else
             # Deterministic development path: no cloud credentials or sensitive plan values.
-            cp terraform/test-plans/multidepth-demo.json cloudpilot-plan.json
+            cp terraform/test-plans/allow-demo.json cloudpilot-plan.json
           fi
 
       - name: Setup Python for ephemeral API
         if: env.CLOUDPILOT_API_URL == ''
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Start ephemeral CloudPilot API
         if: env.CLOUDPILOT_API_URL == ''
@@ -72,17 +72,17 @@ jobs:
             echo "submitted=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          
+
           PYTHON_CMD="python"
           if [ -f ".venv/bin/python" ]; then
             PYTHON_CMD=".venv/bin/python"
           fi
-          
+
           args=(--api-url "$CLOUDPILOT_API_URL" --plan cloudpilot-plan.json --project "$GITHUB_REPOSITORY" --pull-request "${{ github.event.pull_request.number || 'manual' }}" --environment "$CLOUDPILOT_ENVIRONMENT" --team "$CLOUDPILOT_TEAM" --output cloudpilot-result.json)
           if [ -n "${CLOUDPILOT_REMAINING_BUDGET}" ]; then
             args+=(--remaining-budget "$CLOUDPILOT_REMAINING_BUDGET")
           fi
-          
+
           $PYTHON_CMD scripts/github_pr_feedback.py "${args[@]}"
           echo "submitted=true" >> "$GITHUB_OUTPUT"
           echo "analysis_id=$($PYTHON_CMD -c 'import json; print(json.load(open("cloudpilot-result.json"))["id"])')" >> "$GITHUB_OUTPUT"

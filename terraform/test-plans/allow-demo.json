@@ -1,0 +1,27 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.16.3",
+  "resource_changes": [
+    {
+      "address": "aws_instance.cloudpilot_demo",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "cloudpilot_demo",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "instance_type": "t3.micro",
+          "tags": {
+            "Name": "CloudPilot-Demo",
+            "Environment": "development",
+            "Owner": "CloudPilot"
+          }
+        },
+        "before_sensitive": {},
+        "after_sensitive": {}
+      }
+    }
+  ]
+}
