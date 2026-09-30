@@ -31,6 +31,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # An explicitly configured fixture takes precedence over the full demo
+          # directory so a safe PR demo cannot accidentally include the demo RDS.
+          if [ -n "${CLOUDPILOT_DEMO_PLAN:-}" ]; then
+            DEMO_PLAN_FILE="terraform/test-plans/${CLOUDPILOT_DEMO_PLAN}"
+            if [ ! -f "$DEMO_PLAN_FILE" ]; then
+              echo "ERROR: CLOUDPILOT_DEMO_PLAN references a missing fixture: $DEMO_PLAN_FILE"
+              exit 1
+            fi
+
+            echo "Using configured CloudPilot demo plan: $DEMO_PLAN_FILE"
+            cp "$DEMO_PLAN_FILE" "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
+            exit 0
+          fi
+
           if [ -n "${CLOUDPILOT_TF_DIRECTORY}" ] && [ -d "${CLOUDPILOT_TF_DIRECTORY}" ]; then
             cd "${CLOUDPILOT_TF_DIRECTORY}"
             terraform init -input=false -no-color
