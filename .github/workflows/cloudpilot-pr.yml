@@ -30,14 +30,46 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # ---------------------------------------------------------------------------
+          # Repository-variables-driven demo mode.
+          #
+          # For a fully deterministic CI demo that does not depend on provider
+          # resolution or on the shape of the committed fake state, choose one
+          # of the explicit version-controlled fixtures by setting
+          # CLOUDPILOT_DEMO_PLAN to the fixture file name.
+          #
+          #   ALLOW demo:  CLOUDPILOT_DEMO_PLAN=ec2-small-upgrade.json
+          #   BLOCK demo:  CLOUDPILOT_DEMO_PLAN=multidepth-demo.json
+          #
+          # When CLOUDPILOT_DEMO_PLAN is set, the workflow copies that fixture
+          # to cloudpilot-plan.json and skips Terraform init/plan entirely. This
+          # keeps the demo reproducible and prevents the workflow from accidentally
+          # inheriting a stale plan file or a fixture that does not match the PR
+          # intent.
+          # ---------------------------------------------------------------------------
+
+          if [ -n "${CLOUDPILOT_DEMO_PLAN:-}" ]; then
+            DEMO_PLAN_FILE="terraform/test-plans/${CLOUDPILOT_DEMO_PLAN}"
+            if [ ! -f "$DEMO_PLAN_FILE" ]; then
+              echo "ERROR: CLOUDPILOT_DEMO_PLAN references a fixture that does not exist: $DEMO_PLAN_FILE"
+              exit 1
+            fi
+
+            echo "Using deterministic demo plan fixture: $DEMO_PLAN_FILE"
+            cp "$DEMO_PLAN_FILE" "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
+            exit 0
+          fi
+
           if [ -n "${CLOUDPILOT_TF_DIRECTORY}" ] && [ -d "${CLOUDPILOT_TF_DIRECTORY}" ]; then
             cd "${CLOUDPILOT_TF_DIRECTORY}"
             terraform init -input=false -no-color
             terraform plan -input=false -no-color -refresh=false -out=tfplan
             terraform show -json tfplan > "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
           else
-            # Deterministic development path: no cloud credentials or sensitive plan values.
-            cp terraform/test-plans/multidepth-demo.json cloudpilot-plan.json
+            echo "ERROR: No CloudPilot Terraform directory configured and no deterministic demo plan fixture selected."
+            echo "Set CLOUDPILOT_TF_DIRECTORY or CLOUDPILOT_DEMO_PLAN as a repository variable."
+            exit 1
           fi
 
       - name: Setup Python for ephemeral API
