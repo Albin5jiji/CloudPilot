@@ -10,7 +10,7 @@ from app.main import app
 from app.models import ChangeAnalysis, DependencyEdge, ResourceNode, Service, ServiceCriticality, ServiceResource
 
 client = TestClient(app)
-PLAN = json.loads((Path(__file__).parent.parent / "terraform" / "test-plans" / "rds-scale-up.json").read_text())
+PLAN = json.loads((Path(__file__).parent.parent / "test-plans" / "rds-scale-up.json").read_text())
 
 def reset_database():
     Base.metadata.drop_all(engine)
