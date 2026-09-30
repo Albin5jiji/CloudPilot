@@ -51,41 +51,83 @@ jobs:
         if: env.CLOUDPILOT_API_URL == ''
         shell: bash
         run: |
+          set -Eeuo pipefail
+
           python -m venv .venv
-          source .venv/bin/activate
-          pip install -r requirements.txt
-          uvicorn app.main:app &
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+          .venv/bin/uvicorn app.main:app \
+            --host 127.0.0.1 \
+            --port 8000 \
+            >"$RUNNER_TEMP/cloudpilot-api.log" 2>&1 &
+          api_pid=$!
+
           echo "Waiting for API to start..."
-          for i in {1..10}; do
-            curl -s http://127.0.0.1:8000/api/topology && break
+          for i in {1..30}; do
+            if curl --fail --silent --show-error \
+                http://127.0.0.1:8000/api/topology >/dev/null; then
+              echo "CloudPilot API is ready."
+              echo "CLOUDPILOT_API_URL=http://127.0.0.1:8000" >> "$GITHUB_ENV"
+              exit 0
+            fi
+
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              echo "CloudPilot API exited during startup:"
+              cat "$RUNNER_TEMP/cloudpilot-api.log"
+              exit 1
+            fi
+
             sleep 1
           done
-          echo "CLOUDPILOT_API_URL=http://127.0.0.1:8000" >> $GITHUB_ENV
+
+          echo "CloudPilot API did not become ready within the startup timeout:"
+          cat "$RUNNER_TEMP/cloudpilot-api.log"
+          exit 1
+
+      - name: Verify CloudPilot API
+        if: env.CLOUDPILOT_API_URL != ''
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error \
+            "$CLOUDPILOT_API_URL/api/topology" >/dev/null
 
       - name: Submit plan to CloudPilot
         id: cloudpilot
         shell: bash
         run: |
-          set -euo pipefail
-          if [ -z "${CLOUDPILOT_API_URL}" ]; then
-            echo "CloudPilot API URL secret is not configured; deterministic plan generation completed."
+          set -Eeuo pipefail
+
+          if [ -z "${CLOUDPILOT_API_URL:-}" ]; then
+            echo "CloudPilot API URL is not configured; deterministic plan generation completed."
             echo "submitted=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          
-          PYTHON_CMD="python"
-          if [ -f ".venv/bin/python" ]; then
+
+          if [ -x ".venv/bin/python" ]; then
             PYTHON_CMD=".venv/bin/python"
+          else
+            PYTHON_CMD="python"
           fi
-          
-          args=(--api-url "$CLOUDPILOT_API_URL" --plan cloudpilot-plan.json --project "$GITHUB_REPOSITORY" --pull-request "${{ github.event.pull_request.number || 'manual' }}" --environment "$CLOUDPILOT_ENVIRONMENT" --team "$CLOUDPILOT_TEAM" --output cloudpilot-result.json)
-          if [ -n "${CLOUDPILOT_REMAINING_BUDGET}" ]; then
+
+          args=(--api-url "$CLOUDPILOT_API_URL" --plan cloudpilot-plan.json --project "$GITHUB_REPOSITORY" --pull-request "${{ github.event.pull_request.number || 'manual' }}" --environment "${CLOUDPILOT_ENVIRONMENT:-staging}" --team "${CLOUDPILOT_TEAM:-unassigned}" --output cloudpilot-result.json)
+          if [ -n "${CLOUDPILOT_REMAINING_BUDGET:-}" ]; then
             args+=(--remaining-budget "$CLOUDPILOT_REMAINING_BUDGET")
           fi
-          
-          $PYTHON_CMD scripts/github_pr_feedback.py "${args[@]}"
+
+          "$PYTHON_CMD" scripts/github_pr_feedback.py "${args[@]}"
+
+          if [ ! -s cloudpilot-result.json ]; then
+            echo "CloudPilot submission did not produce a result file."
+            echo "submitted=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          "$PYTHON_CMD" -c "import json; json.load(open('cloudpilot-result.json'))"
+
           echo "submitted=true" >> "$GITHUB_OUTPUT"
-          echo "analysis_id=$($PYTHON_CMD -c 'import json; print(json.load(open("cloudpilot-result.json"))["id"])')" >> "$GITHUB_OUTPUT"
+          echo "analysis_id=$("$PYTHON_CMD" -c 'import json; print(json.load(open("cloudpilot-result.json"))["id"])')" >> "$GITHUB_OUTPUT"
 
       - name: Retain prediction association
         if: steps.cloudpilot.outputs.submitted == 'true'
@@ -120,9 +162,32 @@ jobs:
         if: steps.cloudpilot.outputs.submitted == 'true'
         shell: bash
         run: |
+          set -Eeuo pipefail
+
           PYTHON_CMD="python"
           if [ -f ".venv/bin/python" ]; then
             PYTHON_CMD=".venv/bin/python"
           fi
-          decision="$($PYTHON_CMD -c "import json; print(json.load(open('cloudpilot-result.json'))['decision'])")"
-          test "$decision" != "BLOCK"
+
+          if [ ! -s cloudpilot-result.json ]; then
+            echo "FAIL: cloudpilot-result.json is missing or empty."
+            exit 1
+          fi
+
+          decision=$("$PYTHON_CMD" -c "import json; print(json.load(open('cloudpilot-result.json'))['decision'])")
+          project=$("$PYTHON_CMD" -c "import json; print(json.load(open('cloudpilot-result.json')).get('project', 'unknown'))")
+          analysis_id=$("$PYTHON_CMD" -c "import json; print(json.load(open('cloudpilot-result.json')).get('id', 'unknown'))")
+
+          echo "CloudPilot decision: $decision"
+          echo "CloudPilot analysis: #$analysis_id"
+          echo "CloudPilot project: $project"
+
+          if [ "$decision" = "BLOCK" ]; then
+            echo "FAIL: CloudPilot blocked this change."
+            exit 1
+          fi
+
+          if [ "$decision" != "ALLOW" ] && [ "$decision" != "WARN" ]; then
+            echo "FAIL: unexpected CloudPilot decision: $decision"
+            exit 1
+          fi

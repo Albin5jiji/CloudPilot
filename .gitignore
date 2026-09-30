@@ -12,3 +12,6 @@ uvicorn.log
 .terraform/
 *.tfplan
 tfplan.json
+.freebuff/
+
+.freebuff/
