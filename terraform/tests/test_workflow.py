@@ -10,7 +10,7 @@ from app.main import app
 from app.models import ChangeAnalysis, DependencyEdge, ResourceNode, Service, ServiceCriticality, ServiceResource
 
 client = TestClient(app)
-PLAN = json.loads((Path(__file__).parent.parent / "terraform" / "test-plans" / "rds-scale-up.json").read_text())
+PLAN = json.loads((Path(__file__).parent.parent / "test-plans" / "rds-scale-up.json").read_text())
 
 def reset_database():
     Base.metadata.drop_all(engine)
@@ -59,6 +59,23 @@ def test_small_development_ebs_change_is_allowed():
     assert response.status_code == 201
     assert response.json()["decision"] == "ALLOW"
     assert response.json()["monthly_cost_delta"] == 0.8
+
+
+def test_explicit_development_context_preserves_fixture_decisions():
+    reset_database()
+    ec2_plan = json.loads((Path(__file__).parent.parent / "test-plans" / "ec2-small-upgrade.json").read_text())
+    multidepth_plan = json.loads((Path(__file__).parent.parent / "test-plans" / "multidepth-demo.json").read_text())
+    context = {"environment": "development", "remaining_budget": None}
+
+    ec2_response = client.post("/api/analyses", json={"plan": ec2_plan, "context": context})
+    multidepth_response = client.post("/api/analyses", json={"plan": multidepth_plan, "context": context})
+
+    assert ec2_response.status_code == 201
+    assert ec2_response.json()["decision"] == "ALLOW"
+    assert ec2_response.json()["environment"] == "development"
+    assert ec2_response.json()["business_context"]["remaining_budget"] is None
+    assert multidepth_response.status_code == 201
+    assert multidepth_response.json()["decision"] == "BLOCK"
 
 
 def test_checkout_risk_changes_when_its_persisted_criticality_changes():

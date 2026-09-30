@@ -15,7 +15,7 @@ def main() -> int:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--project", required=True)
     parser.add_argument("--pull-request", required=True)
-    parser.add_argument("--environment", default="staging")
+    parser.add_argument("--environment", default="development")
     parser.add_argument("--team", default="unassigned")
     parser.add_argument("--remaining-budget", type=float, default=None)
     parser.add_argument("--output", type=Path, required=True)
@@ -31,11 +31,18 @@ def main() -> int:
     )
     try:
         with urlopen(request, timeout=60) as response:
-            result = json.loads(response.read())
+            raw = response.read()
     except HTTPError as error:
-        raise SystemExit(f"CloudPilot API returned HTTP {error.code}; response is intentionally not logged.") from error
+        body = error.read().decode("utf-8", errors="replace")
+        raise SystemExit(f"CloudPilot API returned HTTP {error.code}: {body}") from error
     except URLError as error:
         raise SystemExit(f"CloudPilot API could not be reached: {error.reason}") from error
+
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise SystemExit(f"CloudPilot API returned invalid JSON: {error}") from error
+
     args.output.write_text(json.dumps(result))
     return 0
 

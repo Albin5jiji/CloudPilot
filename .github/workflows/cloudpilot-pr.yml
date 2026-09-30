@@ -19,7 +19,8 @@ jobs:
       # Set as a GitHub Actions secret. It must be reachable from GitHub-hosted runners.
       CLOUDPILOT_API_URL: ${{ secrets.CLOUDPILOT_API_URL }}
       CLOUDPILOT_TF_DIRECTORY: ${{ vars.CLOUDPILOT_TF_DIRECTORY }}
-      CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'staging' }}
+      CLOUDPILOT_DEMO_PLAN: ${{ vars.CLOUDPILOT_DEMO_PLAN }}
+      CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'development' }}
       CLOUDPILOT_TEAM: ${{ vars.CLOUDPILOT_TEAM || 'unassigned' }}
       CLOUDPILOT_REMAINING_BUDGET: ${{ vars.CLOUDPILOT_REMAINING_BUDGET }}
     steps:
@@ -30,14 +31,46 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # ---------------------------------------------------------------------------
+          # Repository-variables-driven demo mode.
+          #
+          # For a fully deterministic CI demo that does not depend on provider
+          # resolution or on the shape of the committed fake state, choose one
+          # of the explicit version-controlled fixtures by setting
+          # CLOUDPILOT_DEMO_PLAN to the fixture file name.
+          #
+          #   ALLOW demo:  CLOUDPILOT_DEMO_PLAN=ec2-small-upgrade.json
+          #   BLOCK demo:  CLOUDPILOT_DEMO_PLAN=multidepth-demo.json
+          #
+          # When CLOUDPILOT_DEMO_PLAN is set, the workflow copies that fixture
+          # to cloudpilot-plan.json and skips Terraform init/plan entirely. This
+          # keeps the demo reproducible and prevents the workflow from accidentally
+          # inheriting a stale plan file or a fixture that does not match the PR
+          # intent.
+          # ---------------------------------------------------------------------------
+
+          if [ -n "${CLOUDPILOT_DEMO_PLAN:-}" ]; then
+            DEMO_PLAN_FILE="terraform/test-plans/${CLOUDPILOT_DEMO_PLAN}"
+            if [ ! -f "$DEMO_PLAN_FILE" ]; then
+              echo "ERROR: CLOUDPILOT_DEMO_PLAN references a fixture that does not exist: $DEMO_PLAN_FILE"
+              exit 1
+            fi
+
+            echo "Using deterministic demo plan fixture: $DEMO_PLAN_FILE"
+            cp "$DEMO_PLAN_FILE" "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
+            exit 0
+          fi
+
           if [ -n "${CLOUDPILOT_TF_DIRECTORY}" ] && [ -d "${CLOUDPILOT_TF_DIRECTORY}" ]; then
             cd "${CLOUDPILOT_TF_DIRECTORY}"
             terraform init -input=false -no-color
             terraform plan -input=false -no-color -refresh=false -out=tfplan
             terraform show -json tfplan > "${GITHUB_WORKSPACE}/cloudpilot-plan.json"
           else
-            # Deterministic development path: no cloud credentials or sensitive plan values.
-            cp terraform/test-plans/multidepth-demo.json cloudpilot-plan.json
+            echo "ERROR: No CloudPilot Terraform directory configured and no deterministic demo plan fixture selected."
+            echo "Set CLOUDPILOT_TF_DIRECTORY or CLOUDPILOT_DEMO_PLAN as a repository variable."
+            exit 1
           fi
 
       - name: Setup Python for ephemeral API
@@ -51,41 +84,83 @@ jobs:
         if: env.CLOUDPILOT_API_URL == ''
         shell: bash
         run: |
+          set -Eeuo pipefail
+
           python -m venv .venv
-          source .venv/bin/activate
-          pip install -r requirements.txt
-          uvicorn app.main:app &
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+          .venv/bin/uvicorn app.main:app \
+            --host 127.0.0.1 \
+            --port 8000 \
+            >"$RUNNER_TEMP/cloudpilot-api.log" 2>&1 &
+          api_pid=$!
+
           echo "Waiting for API to start..."
-          for i in {1..10}; do
-            curl -s http://127.0.0.1:8000/api/topology && break
+          for i in {1..30}; do
+            if curl --fail --silent --show-error \
+                http://127.0.0.1:8000/api/topology >/dev/null; then
+              echo "CloudPilot API is ready."
+              echo "CLOUDPILOT_API_URL=http://127.0.0.1:8000" >> "$GITHUB_ENV"
+              exit 0
+            fi
+
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              echo "CloudPilot API exited during startup:"
+              cat "$RUNNER_TEMP/cloudpilot-api.log"
+              exit 1
+            fi
+
             sleep 1
           done
-          echo "CLOUDPILOT_API_URL=http://127.0.0.1:8000" >> $GITHUB_ENV
+
+          echo "CloudPilot API did not become ready within the startup timeout:"
+          cat "$RUNNER_TEMP/cloudpilot-api.log"
+          exit 1
+
+      - name: Verify CloudPilot API
+        if: env.CLOUDPILOT_API_URL != ''
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error \
+            "$CLOUDPILOT_API_URL/api/topology" >/dev/null
 
       - name: Submit plan to CloudPilot
         id: cloudpilot
         shell: bash
         run: |
-          set -euo pipefail
-          if [ -z "${CLOUDPILOT_API_URL}" ]; then
-            echo "CloudPilot API URL secret is not configured; deterministic plan generation completed."
+          set -Eeuo pipefail
+
+          if [ -z "${CLOUDPILOT_API_URL:-}" ]; then
+            echo "CloudPilot API URL is not configured; deterministic plan generation completed."
             echo "submitted=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          
-          PYTHON_CMD="python"
-          if [ -f ".venv/bin/python" ]; then
+
+          if [ -x ".venv/bin/python" ]; then
             PYTHON_CMD=".venv/bin/python"
+          else
+            PYTHON_CMD="python"
           fi
-          
-          args=(--api-url "$CLOUDPILOT_API_URL" --plan cloudpilot-plan.json --project "$GITHUB_REPOSITORY" --pull-request "${{ github.event.pull_request.number || 'manual' }}" --environment "$CLOUDPILOT_ENVIRONMENT" --team "$CLOUDPILOT_TEAM" --output cloudpilot-result.json)
-          if [ -n "${CLOUDPILOT_REMAINING_BUDGET}" ]; then
+
+          args=(--api-url "$CLOUDPILOT_API_URL" --plan cloudpilot-plan.json --project "$GITHUB_REPOSITORY" --pull-request "${{ github.event.pull_request.number || 'manual' }}" --environment "${CLOUDPILOT_ENVIRONMENT:-development}" --team "${CLOUDPILOT_TEAM:-unassigned}" --output cloudpilot-result.json)
+          if [ -n "${CLOUDPILOT_REMAINING_BUDGET:-}" ]; then
             args+=(--remaining-budget "$CLOUDPILOT_REMAINING_BUDGET")
           fi
-          
-          $PYTHON_CMD scripts/github_pr_feedback.py "${args[@]}"
+
+          "$PYTHON_CMD" scripts/github_pr_feedback.py "${args[@]}"
+
+          if [ ! -s cloudpilot-result.json ]; then
+            echo "CloudPilot submission did not produce a result file."
+            echo "submitted=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          "$PYTHON_CMD" -c "import json; json.load(open('cloudpilot-result.json'))"
+
           echo "submitted=true" >> "$GITHUB_OUTPUT"
-          echo "analysis_id=$($PYTHON_CMD -c 'import json; print(json.load(open("cloudpilot-result.json"))["id"])')" >> "$GITHUB_OUTPUT"
+          echo "analysis_id=$("$PYTHON_CMD" -c 'import json; print(json.load(open("cloudpilot-result.json"))["id"])')" >> "$GITHUB_OUTPUT"
 
       - name: Retain prediction association
         if: steps.cloudpilot.outputs.submitted == 'true'
@@ -120,9 +195,32 @@ jobs:
         if: steps.cloudpilot.outputs.submitted == 'true'
         shell: bash
         run: |
+          set -Eeuo pipefail
+
           PYTHON_CMD="python"
           if [ -f ".venv/bin/python" ]; then
             PYTHON_CMD=".venv/bin/python"
           fi
-          decision="$($PYTHON_CMD -c "import json; print(json.load(open('cloudpilot-result.json'))['decision'])")"
-          test "$decision" != "BLOCK"
+
+          if [ ! -s cloudpilot-result.json ]; then
+            echo "FAIL: cloudpilot-result.json is missing or empty."
+            exit 1
+          fi
+
+          decision=$("$PYTHON_CMD" -c "import json; print(json.load(open('cloudpilot-result.json'))['decision'])")
+          project=$("$PYTHON_CMD" -c "import json; print(json.load(open('cloudpilot-result.json')).get('project', 'unknown'))")
+          analysis_id=$("$PYTHON_CMD" -c "import json; print(json.load(open('cloudpilot-result.json')).get('id', 'unknown'))")
+
+          echo "CloudPilot decision: $decision"
+          echo "CloudPilot analysis: #$analysis_id"
+          echo "CloudPilot project: $project"
+
+          if [ "$decision" = "BLOCK" ]; then
+            echo "FAIL: CloudPilot blocked this change."
+            exit 1
+          fi
+
+          if [ "$decision" != "ALLOW" ] && [ "$decision" != "WARN" ]; then
+            echo "FAIL: unexpected CloudPilot decision: $decision"
+            exit 1
+          fi
