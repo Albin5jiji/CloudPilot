@@ -10,7 +10,7 @@ from app.main import app
 from app.models import ChangeAnalysis, DependencyEdge, ResourceNode, Service, ServiceCriticality, ServiceResource
 
 client = TestClient(app)
-PLAN = json.loads((Path(__file__).parent.parent / "terraform" / "test-plans" / "rds-scale-up.json").read_text())
+PLAN = json.loads((Path(__file__).parent.parent / "test-plans" / "rds-scale-up.json").read_text())
 
 def reset_database():
     Base.metadata.drop_all(engine)
@@ -63,8 +63,8 @@ def test_small_development_ebs_change_is_allowed():
 
 def test_explicit_development_context_preserves_fixture_decisions():
     reset_database()
-    ec2_plan = json.loads((Path(__file__).parent.parent / "terraform" / "test-plans" / "ec2-small-upgrade.json").read_text())
-    multidepth_plan = json.loads((Path(__file__).parent.parent / "terraform" / "test-plans" / "multidepth-demo.json").read_text())
+    ec2_plan = json.loads((Path(__file__).parent.parent / "test-plans" / "ec2-small-upgrade.json").read_text())
+    multidepth_plan = json.loads((Path(__file__).parent.parent / "test-plans" / "multidepth-demo.json").read_text())
     context = {"environment": "development", "remaining_budget": None}
 
     ec2_response = client.post("/api/analyses", json={"plan": ec2_plan, "context": context})
