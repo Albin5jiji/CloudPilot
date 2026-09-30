@@ -19,7 +19,7 @@ jobs:
       # Set as a GitHub Actions secret. It must be reachable from GitHub-hosted runners.
       CLOUDPILOT_API_URL: ${{ secrets.CLOUDPILOT_API_URL }}
       CLOUDPILOT_TF_DIRECTORY: ${{ vars.CLOUDPILOT_TF_DIRECTORY }}
-      CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'staging' }}
+      CLOUDPILOT_ENVIRONMENT: ${{ vars.CLOUDPILOT_ENVIRONMENT || 'development' }}
       CLOUDPILOT_TEAM: ${{ vars.CLOUDPILOT_TEAM || 'unassigned' }}
       CLOUDPILOT_REMAINING_BUDGET: ${{ vars.CLOUDPILOT_REMAINING_BUDGET }}
     steps:
@@ -143,7 +143,7 @@ jobs:
             PYTHON_CMD="python"
           fi
 
-          args=(--api-url "$CLOUDPILOT_API_URL" --plan cloudpilot-plan.json --project "$GITHUB_REPOSITORY" --pull-request "${{ github.event.pull_request.number || 'manual' }}" --environment "${CLOUDPILOT_ENVIRONMENT:-staging}" --team "${CLOUDPILOT_TEAM:-unassigned}" --output cloudpilot-result.json)
+          args=(--api-url "$CLOUDPILOT_API_URL" --plan cloudpilot-plan.json --project "$GITHUB_REPOSITORY" --pull-request "${{ github.event.pull_request.number || 'manual' }}" --environment "${CLOUDPILOT_ENVIRONMENT:-development}" --team "${CLOUDPILOT_TEAM:-unassigned}" --output cloudpilot-result.json)
           if [ -n "${CLOUDPILOT_REMAINING_BUDGET:-}" ]; then
             args+=(--remaining-budget "$CLOUDPILOT_REMAINING_BUDGET")
           fi

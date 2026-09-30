@@ -15,7 +15,7 @@ def main() -> int:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--project", required=True)
     parser.add_argument("--pull-request", required=True)
-    parser.add_argument("--environment", default="staging")
+    parser.add_argument("--environment", default="development")
     parser.add_argument("--team", default="unassigned")
     parser.add_argument("--remaining-budget", type=float, default=None)
     parser.add_argument("--output", type=Path, required=True)
