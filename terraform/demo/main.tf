@@ -24,13 +24,13 @@ provider "aws" {
 variable "ec2_instance_type" {
   description = "EC2 instance type for the demo workload"
   type        = string
-  default     = "t3.large"
+  default     = "t3.micro"
 }
 
 variable "rds_instance_class" {
   description = "RDS instance class for the checkout database"
   type        = string
-  default     = "db.t3.medium"
+  default     = "db.r6g.2xlarge"
 }
 
 # ── Resources ─────────────────────────────────────────────────────────────────
