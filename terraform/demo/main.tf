@@ -27,11 +27,6 @@ variable "ec2_instance_type" {
   default     = "t3.small"
 }
 
-variable "rds_instance_class" {
-  description = "RDS instance class for the checkout database"
-  type        = string
-  default     = "db.t3.medium"
-}
 
 # ── Resources ─────────────────────────────────────────────────────────────────
 
