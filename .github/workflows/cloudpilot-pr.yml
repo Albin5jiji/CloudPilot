@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "**/*.tf"
+      - "**/*.tfvars"
       - ".github/workflows/cloudpilot-pr.yml"
       - "scripts/github_pr_feedback.py"
   workflow_dispatch:
