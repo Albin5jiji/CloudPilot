@@ -35,6 +35,11 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 @app.get("/", include_in_schema=False)
 def dashboard(): return FileResponse(static_dir / "index.html")
 
+@app.get("/healthz", include_in_schema=False)
+def health_check():
+    """Lightweight readiness endpoint for the deployment platform."""
+    return {"status": "ok", "service": "cloudpilot"}
+
 @app.post("/api/analyses", response_model=AnalysisResponse, status_code=201)
 def create_analysis(submission: PlanSubmission, db: Session = Depends(get_db)):
     return response_for(submit_plan(db, submission.plan, submission.context.model_dump(), set(submission.context.model_fields_set)))
