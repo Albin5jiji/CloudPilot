@@ -12,7 +12,7 @@ from .database import Base, engine
 from .models import Budget, MaintenanceWindow, Policy, Service, ServiceCriticality, ServiceResource, Team, ResourceNode, DependencyEdge
 
 
-DEFAULT_COST_LIMITS = {"warn_above": 100, "block_above": 500}
+DEFAULT_COST_LIMITS = {"warn_above": 100, "block_above": 250}
 
 
 def initialize_database() -> None:
